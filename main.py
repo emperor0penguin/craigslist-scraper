@@ -46,8 +46,12 @@ class SearchParser(HTMLParser):
 
     def handle_endtag(self, tag):
         if self.listing is not None and tag == 'li':
-            self.listings.append(self.listing)
-            self.listing = None
+            for listing in self.listings:
+                if listing.post_id == self.listing.post_id:
+                    self.listing = None
+            if self.listing is not None:
+                self.listings.append(self.listing)
+                self.listing = None
 
 class PostParser(HTMLParser):
     SMALL_END = '50x50c.jpg'
@@ -87,12 +91,12 @@ for listing in parser.listings:
     print(str(listing))
     print('\n')
 
-site = requests.get('https://austin.craigslist.org/fuo/d/austin-black-tall-dresser/7245175921.html')
-page_source = site.text
+#site = requests.get('https://austin.craigslist.org/fuo/d/austin-black-tall-dresser/7245175921.html')
+#page_source = site.text
 
-parser = PostParser()
-parser.feed(page_source)
-print(parser.imgs)
-print(parser.description)
+#parser = PostParser()
+#parser.feed(page_source)
+#print(parser.imgs)
+#print(parser.description)
 
 
