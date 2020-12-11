@@ -97,21 +97,20 @@ def read_file():
     return [dict_to_listing(d) for d in json_data]
 
 
+def main():
+    site = requests.get('https://austin.craigslist.org/search/fua?hasPic=1&postedToday=1&max_price=1000')
+    page_source = site.text
 
-site = requests.get('https://austin.craigslist.org/search/fua?hasPic=1&postedToday=1&max_price=1000')
-page_source = site.text
+    parser = SearchParser()
+    parser.feed(page_source)
+    write_file(parser.listings)
 
-parser = SearchParser()
-parser.feed(page_source)
-write_file(parser.listings)
-for listing in read_file():
-    print(str(listing))
+    site = requests.get('https://austin.craigslist.org/fuo/d/austin-black-tall-dresser/7245175921.html')
+    page_source = site.text
 
-site = requests.get('https://austin.craigslist.org/fuo/d/austin-black-tall-dresser/7245175921.html')
-page_source = site.text
+    parser = PostParser()
+    parser.feed(page_source)
 
-parser = PostParser()
-parser.feed(page_source)
-print(parser.imgs)
-print(parser.description)
 
+if __name__ == "__main__":
+    main()
