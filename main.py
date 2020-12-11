@@ -2,7 +2,7 @@
 """
 
 """
-
+import json
 import requests
 from html.parser import HTMLParser
 
@@ -46,12 +46,8 @@ class SearchParser(HTMLParser):
 
     def handle_endtag(self, tag):
         if self.listing is not None and tag == 'li':
-            for listing in self.listings:
-                if listing.post_id == self.listing.post_id:
-                    self.listing = None
-            if self.listing is not None:
-                self.listings.append(self.listing)
-                self.listing = None
+            self.listings.append(self.listing)
+            self.listing = None
 
 class PostParser(HTMLParser):
     SMALL_END = '50x50c.jpg'
@@ -81,6 +77,10 @@ class PostParser(HTMLParser):
         if tag == 'section' and self.is_description:
             self.is_description = False
 
+def write2file(listings):
+        with open('post_history.txt', 'w') as outfile:
+            json.dump(listings, outfile)
+
 
 site = requests.get('https://austin.craigslist.org/search/fua?hasPic=1&postedToday=1&max_price=1000')
 page_source = site.text
@@ -91,12 +91,12 @@ for listing in parser.listings:
     print(str(listing))
     print('\n')
 
-#site = requests.get('https://austin.craigslist.org/fuo/d/austin-black-tall-dresser/7245175921.html')
-#page_source = site.text
+site = requests.get('https://austin.craigslist.org/fuo/d/austin-black-tall-dresser/7245175921.html')
+page_source = site.text
 
-#parser = PostParser()
-#parser.feed(page_source)
-#print(parser.imgs)
-#print(parser.description)
+parser = PostParser()
+parser.feed(page_source)
+print(parser.imgs)
+print(parser.description)
 
 
