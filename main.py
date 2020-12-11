@@ -5,6 +5,9 @@
 import json
 import requests
 from html.parser import HTMLParser
+import smtplib
+import ssl
+import math
 
 class Listing:
     def __init__(self, post_id):
@@ -57,6 +60,7 @@ class PostParser(HTMLParser):
         super().__init__()
         self.imgs = []
         self.is_description = False
+        self.is_total_count = False
         self.description = ''
 
     def handle_starttag(self, tag, attrs):
@@ -68,18 +72,24 @@ class PostParser(HTMLParser):
             self.imgs.append(url)
         elif tag == 'section' and 'id' in attrs and attrs['id'] == 'postingbody':
             self.is_description = True
+        elif tag == 'span' and 'class' in attrs and attrs['class'] == 'totalcount':
+            self.is_total_count = True
 
     def handle_data(self, data):
         if self.is_description and 'QR Code Link' not in data:
             self.description += data
+        elif self.is_total_count:
+            self.total_count = int(data)
 
     def handle_endtag(self, tag):
         if tag == 'section' and self.is_description:
             self.is_description = False
+        elif tag == 'span' and self.is_total_count:
+            self.is_total_count = False
 
 def write_file(listings):
         json_data = [l.__dict__ for l in listings]
-        with open('post_history.txt', 'w') as out_file:
+        with open('post_history.json', 'w') as out_file:
             json.dump(json_data, out_file)
 
 def read_file():
@@ -91,26 +101,49 @@ def read_file():
         l.title = d['title']
         return l
 
-    with open('post_history.txt', 'r') as in_file:
+    with open('post_history.json', 'r') as in_file:
         json_data = json.load(in_file)
 
-    return [dict_to_listing(d) for d in json_data]
+    return {d['post_id']: dict_to_listing(d) for d in json_data}
 
+def send_message(listing):
+    port = 465  # For SSL
+    smtp_server = "smtp.gmail.com"
+    sender_email = "@gmail.com"  # Enter your address
+    receiver_email = '@mms.cricketwireless.net' #input('Phone #: ') + '@mms.cricketwireless.net' # Enter receiver address
+    password = '' #input("password: ")
+    
+    title = listing.title
+    price = listing.price
+    url = listing.url
+    
+    message = 'Subject: ' + title + '\n\nprice: $' + str(price) + '\n' + url
+    
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
+        server.login(sender_email, password)
+        server.sendmail(sender_email, receiver_email, message)
+
+def getListings():
+    url = 'https://austin.craigslist.org/search/fua?hasPic=1&postedToday=1&max_price=1000'
+    parser = SearchParser()
+    parser.feed(requests.get(url).text)
+    total_count = parser.total_count
+    all_listings = []
+    all_listings.extend(parser.listings)
+    while len(all_listings) < total_count:
+        parser = SearchParser()
+        parser.feed(requests.get(url + '&s=' + len(all_listings)).text)
+        all_listings.extend(parser.listings)
+    return all_listings
 
 def main():
-    site = requests.get('https://austin.craigslist.org/search/fua?hasPic=1&postedToday=1&max_price=1000')
-    page_source = site.text
-
-    parser = SearchParser()
-    parser.feed(page_source)
-    write_file(parser.listings)
-
-    site = requests.get('https://austin.craigslist.org/fuo/d/austin-black-tall-dresser/7245175921.html')
-    page_source = site.text
-
-    parser = PostParser()
-    parser.feed(page_source)
-
+    
+    old_listings = read_file()
+    current_listings = getListings()
+    new_listings = []
+    write_file(current_listings)
+    
 
 if __name__ == "__main__":
     main()
