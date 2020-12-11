@@ -77,9 +77,25 @@ class PostParser(HTMLParser):
         if tag == 'section' and self.is_description:
             self.is_description = False
 
-def write2file(listings):
-        with open('post_history.txt', 'w') as outfile:
-            json.dump(listings, outfile)
+def write_file(listings):
+        json_data = [l.__dict__ for l in listings]
+        with open('post_history.txt', 'w') as out_file:
+            json.dump(json_data, out_file)
+
+def read_file():
+    def dict_to_listing(d):
+        l = Listing(d['post_id'])
+        l.url = d['url']
+        l.price = d['price']
+        l.time = d['time']
+        l.title = d['title']
+        return l
+
+    with open('post_history.txt', 'r') as in_file:
+        json_data = json.load(in_file)
+
+    return [dict_to_listing(d) for d in json_data]
+
 
 
 site = requests.get('https://austin.craigslist.org/search/fua?hasPic=1&postedToday=1&max_price=1000')
@@ -87,9 +103,9 @@ page_source = site.text
 
 parser = SearchParser()
 parser.feed(page_source)
-for listing in parser.listings:
+write_file(parser.listings)
+for listing in read_file():
     print(str(listing))
-    print('\n')
 
 site = requests.get('https://austin.craigslist.org/fuo/d/austin-black-tall-dresser/7245175921.html')
 page_source = site.text
@@ -98,5 +114,4 @@ parser = PostParser()
 parser.feed(page_source)
 print(parser.imgs)
 print(parser.description)
-
 
