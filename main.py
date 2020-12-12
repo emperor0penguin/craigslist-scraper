@@ -99,7 +99,7 @@ def read_file():
     with open('post_history.txt', 'r') as in_file:
         return {int(post_id) for post_id in in_file}
 
-def send_message(listing):
+def send_message(listing, img):
     title = listing.title
     price = listing.price
     url = listing.url
@@ -114,34 +114,31 @@ def send_message(listing):
     message['To'] = receiver_email
     message['Subject'] = title
 
-
-    filename = 'image.jpg'  # In same directory as script
-
-    # Open image file in binary mode
-    with open(filename, 'rb') as attachment:
-        # Add file as application/octet-stream
-        # Email client can usually download this automatically as attachment
-        part = MIMEBase('application', 'octet-stream')
-        part.set_payload(attachment.read())
-
-    # Encode file in ASCII characters to send by email
-    encoders.encode_base64(part)
-
-    # Add header as key/value pair to attachment part
-    part.add_header(
-        'Content-Disposition',
-        f'attachment; filename= {filename}',
-    )
-    part.add_header('Content-ID', 'img1')
     # Add body to email
     message.attach(MIMEText(f'price: ${price} \n{url}', 'plain'))
 
-    # Add attachment to message and convert message to string
-    message.attach(part)
+    filename = 'image.jpg'  # In same directory as script
+
+    if img is not None:
+        # Add file as application/octet-stream
+        # Email client can usually download this automatically as attachment
+        part = MIMEBase('application', 'octet-stream')
+        part.set_payload(img)
+
+        # Encode file in ASCII characters to send by email
+        encoders.encode_base64(part)
+
+        # Add header as key/value pair to attachment part
+        part.add_header(
+            'Content-Disposition',
+            f'attachment; filename= {filename}',
+        )
+        part.add_header('Content-ID', 'img1')
+
+        # Add attachment to message and convert message to string
+        message.attach(part)
+
     text = message.as_string()
-
-
-
     # Log in to server using secure context and send email
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
@@ -175,8 +172,7 @@ def main():
     current_listings = get_listings()
     new_listings = [l for l in current_listings if l.post_id not in old_ids]
     for listing in new_listings:
-        get_image(listing)
-        #send_message(listing)
+        send_message(listing, get_image(listing))
         print(str(f'title: {listing.title}'))
     write_file(l.post_id for l in current_listings)
 
