@@ -87,24 +87,14 @@ class PostParser(HTMLParser):
         elif tag == 'span' and self.is_total_count:
             self.is_total_count = False
 
-def write_file(listings):
-        json_data = [l.__dict__ for l in listings]
+def write_file(post_ids):
         with open('post_history.json', 'w') as out_file:
-            json.dump(json_data, out_file)
+            for post_id in post_ids:
+                out_file.write(f'{post_id}\n')
 
 def read_file():
-    def dict_to_listing(d):
-        l = Listing(d['post_id'])
-        l.url = d['url']
-        l.price = d['price']
-        l.time = d['time']
-        l.title = d['title']
-        return l
-
-    with open('post_history.json', 'r') as in_file:
-        json_data = json.load(in_file)
-
-    return {d['post_id']: dict_to_listing(d) for d in json_data}
+    with open('post_history.txt', 'r') as in_file:
+        return {int(post_id) for post_id in in_file}
 
 def send_message(listing):
     port = 465  # For SSL
@@ -112,38 +102,38 @@ def send_message(listing):
     sender_email = "@gmail.com"  # Enter your address
     receiver_email = '@mms.cricketwireless.net' #input('Phone #: ') + '@mms.cricketwireless.net' # Enter receiver address
     password = '' #input("password: ")
-    
+
     title = listing.title
     price = listing.price
     url = listing.url
-    
+
     message = 'Subject: ' + title + '\n\nprice: $' + str(price) + '\n' + url
-    
+
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
         server.login(sender_email, password)
         server.sendmail(sender_email, receiver_email, message)
 
-def getListings():
+def get_listings():
     url = 'https://austin.craigslist.org/search/fua?hasPic=1&postedToday=1&max_price=1000'
     parser = SearchParser()
     parser.feed(requests.get(url).text)
     total_count = parser.total_count
-    all_listings = []
-    all_listings.extend(parser.listings)
+    all_listings = parser.listings
     while len(all_listings) < total_count:
         parser = SearchParser()
-        parser.feed(requests.get(url + '&s=' + len(all_listings)).text)
+        parser.feed(requests.get(f'{url}&s={len(all_listings)}').text)
         all_listings.extend(parser.listings)
     return all_listings
 
 def main():
-    
-    old_listings = read_file()
-    current_listings = getListings()
-    new_listings = []
-    write_file(current_listings)
-    
+    old_ids = read_file()
+    current_listings = get_listings()
+    new_listings = [l for l in current_listings if l.post_id not in old_ids]
+    for listing in new_listings:
+        send_message(listing)
+    write_file(l.post_id for l in current_listings)
+
 
 if __name__ == "__main__":
     main()
