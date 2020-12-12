@@ -165,8 +165,6 @@ def get_image(listing):
     with requests.get(parser.imgs[0], stream=True) as response:
         return response.raw.read()
 
-
-
 def main():
     old_ids = read_file()
     current_listings = get_listings()
@@ -175,7 +173,6 @@ def main():
         send_message(listing, get_image(listing))
         print(str(f'title: {listing.title}'))
     write_file(l.post_id for l in current_listings)
-
 
 if __name__ == "__main__":
     main()
