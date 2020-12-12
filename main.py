@@ -103,30 +103,30 @@ def send_message(listing):
     title = listing.title
     price = listing.price
     url = listing.url
-    
+
     sender_email = '@gmail.com'
     receiver_email = '@mms.cricketwireless.net'
     password = ''
-    
+
     # Create a multipart message and set headers
     message = MIMEMultipart()
     message['From'] = sender_email
     message['To'] = receiver_email
     message['Subject'] = title
-    
-    
+
+
     filename = 'image.jpg'  # In same directory as script
-    
+
     # Open image file in binary mode
     with open(filename, 'rb') as attachment:
         # Add file as application/octet-stream
         # Email client can usually download this automatically as attachment
         part = MIMEBase('application', 'octet-stream')
         part.set_payload(attachment.read())
-    
-    # Encode file in ASCII characters to send by email    
+
+    # Encode file in ASCII characters to send by email
     encoders.encode_base64(part)
-    
+
     # Add header as key/value pair to attachment part
     part.add_header(
         'Content-Disposition',
@@ -135,13 +135,13 @@ def send_message(listing):
     part.add_header('Content-ID', 'img1')
     # Add body to email
     message.attach(MIMEText(f'price: ${price} \n{url}', 'plain'))
-    
+
     # Add attachment to message and convert message to string
     message.attach(part)
     text = message.as_string()
-    
-    
-    
+
+
+
     # Log in to server using secure context and send email
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
@@ -160,12 +160,23 @@ def get_listings():
         all_listings.extend(parser.listings)
     return all_listings
 
+def get_image(listing):
+    parser = PostParser()
+    parser.feed(requests.get(listing.url).text)
+    if len(parser.imgs) == 0:
+        return None
+    with requests.get(parser.imgs[0], stream=True) as response:
+        return response.raw.read()
+
+
+
 def main():
     old_ids = read_file()
     current_listings = get_listings()
     new_listings = [l for l in current_listings if l.post_id not in old_ids]
     for listing in new_listings:
-        send_message(listing)
+        get_image(listing)
+        #send_message(listing)
         print(str(f'title: {listing.title}'))
     write_file(l.post_id for l in current_listings)
 
