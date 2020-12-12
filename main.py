@@ -2,12 +2,15 @@
 """
 
 """
-import json
 import requests
 from html.parser import HTMLParser
 import smtplib
 import ssl
-import math
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 
 class Listing:
     def __init__(self, post_id):
@@ -23,6 +26,7 @@ class SearchParser(HTMLParser):
         self.listing = None
         self.is_price = False
         self.is_title = False
+        self.is_total_count = False
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
@@ -38,6 +42,8 @@ class SearchParser(HTMLParser):
                 self.listing.time = attrs['datetime']
             elif tag == 'span' and attrs['class'] == 'result-price':
                 self.is_price = True
+        elif tag == 'span' and 'class' in attrs and attrs['class'] == 'totalcount':
+            self.is_total_count = True
 
     def handle_data(self, data):
         if self.is_title:
@@ -46,11 +52,15 @@ class SearchParser(HTMLParser):
         if self.is_price:
             self.listing.price = int(data[1:].replace(',',''))
             self.is_price = False
+        elif self.is_total_count:
+            self.total_count = int(data)
 
     def handle_endtag(self, tag):
         if self.listing is not None and tag == 'li':
             self.listings.append(self.listing)
             self.listing = None
+        elif tag == 'span' and self.is_total_count:
+            self.is_total_count = False
 
 class PostParser(HTMLParser):
     SMALL_END = '50x50c.jpg'
@@ -60,7 +70,6 @@ class PostParser(HTMLParser):
         super().__init__()
         self.imgs = []
         self.is_description = False
-        self.is_total_count = False
         self.description = ''
 
     def handle_starttag(self, tag, attrs):
@@ -72,23 +81,17 @@ class PostParser(HTMLParser):
             self.imgs.append(url)
         elif tag == 'section' and 'id' in attrs and attrs['id'] == 'postingbody':
             self.is_description = True
-        elif tag == 'span' and 'class' in attrs and attrs['class'] == 'totalcount':
-            self.is_total_count = True
 
     def handle_data(self, data):
         if self.is_description and 'QR Code Link' not in data:
             self.description += data
-        elif self.is_total_count:
-            self.total_count = int(data)
 
     def handle_endtag(self, tag):
         if tag == 'section' and self.is_description:
             self.is_description = False
-        elif tag == 'span' and self.is_total_count:
-            self.is_total_count = False
 
 def write_file(post_ids):
-        with open('post_history.json', 'w') as out_file:
+        with open('post_history.txt', 'w') as out_file:
             for post_id in post_ids:
                 out_file.write(f'{post_id}\n')
 
@@ -97,25 +100,56 @@ def read_file():
         return {int(post_id) for post_id in in_file}
 
 def send_message(listing):
-    port = 465  # For SSL
-    smtp_server = "smtp.gmail.com"
-    sender_email = "@gmail.com"  # Enter your address
-    receiver_email = '@mms.cricketwireless.net' #input('Phone #: ') + '@mms.cricketwireless.net' # Enter receiver address
-    password = '' #input("password: ")
-
     title = listing.title
     price = listing.price
     url = listing.url
-
-    message = 'Subject: ' + title + '\n\nprice: $' + str(price) + '\n' + url
-
+    
+    sender_email = '@gmail.com'
+    receiver_email = '@mms.cricketwireless.net'
+    password = ''
+    
+    # Create a multipart message and set headers
+    message = MIMEMultipart()
+    message['From'] = sender_email
+    message['To'] = receiver_email
+    message['Subject'] = title
+    
+    
+    filename = 'image.jpg'  # In same directory as script
+    
+    # Open image file in binary mode
+    with open(filename, 'rb') as attachment:
+        # Add file as application/octet-stream
+        # Email client can usually download this automatically as attachment
+        part = MIMEBase('application', 'octet-stream')
+        part.set_payload(attachment.read())
+    
+    # Encode file in ASCII characters to send by email    
+    encoders.encode_base64(part)
+    
+    # Add header as key/value pair to attachment part
+    part.add_header(
+        'Content-Disposition',
+        f'attachment; filename= {filename}',
+    )
+    part.add_header('Content-ID', 'img1')
+    # Add body to email
+    message.attach(MIMEText(f'price: ${price} \n{url}', 'plain'))
+    
+    # Add attachment to message and convert message to string
+    message.attach(part)
+    text = message.as_string()
+    
+    
+    
+    # Log in to server using secure context and send email
     context = ssl.create_default_context()
-    with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
         server.login(sender_email, password)
-        server.sendmail(sender_email, receiver_email, message)
+        server.sendmail(sender_email, receiver_email, text)
 
 def get_listings():
-    url = 'https://austin.craigslist.org/search/fua?hasPic=1&postedToday=1&max_price=1000'
+    url = 'https://austin.craigslist.org/search/bia?hasPic=1&search_distance=20&postal=78613'
     parser = SearchParser()
     parser.feed(requests.get(url).text)
     total_count = parser.total_count
@@ -132,6 +166,7 @@ def main():
     new_listings = [l for l in current_listings if l.post_id not in old_ids]
     for listing in new_listings:
         send_message(listing)
+        print(str(f'title: {listing.title}'))
     write_file(l.post_id for l in current_listings)
 
 
